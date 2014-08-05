@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	http://www.springframework.org/schema/beans/spring-beans-3.1.xsd 
+	http://www.springframework.org/schema/util 
+	http://www.springframework.org/schema/util/spring-util-3.1.xsd 
+	http://www.springframework.org/schema/context 
+	http://www.springframework.org/schema/context/spring-context-3.1.xsd">
+
+	<util:constant id="USERNAME_PROPERTY" static-field="javax.xml.ws.BindingProvider.USERNAME_PROPERTY"/>
+	<util:constant id="PASSWORD_PROPERTY" static-field="javax.xml.ws.BindingProvider.PASSWORD_PROPERTY"/>
+
+	<bean id="exchangeServiceProxy"
+		class="org.springframework.remoting.jaxws.JaxWsPortProxyFactoryBean">
+		<property name="serviceInterface"
+			value="au.com.david.exchange.ExtendedExchangeServicePortType" />
+		<property name="wsdlDocumentUrl" value="classpath:WSDL/ExchangeService.wsdl" />
+		<property name="namespaceUri"
+			value="http://schemas.microsoft.com/exchange/services/2006/messages" />
+		<property name="serviceName" value="ExchangeService" />
+		<property name="endpointAddress"
+			value="${au.com.david.exchange.url}" />
+	</bean>
+
+	<bean id="jaxwsRequestContext"
+		class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+		<property name="targetObject" ref="exchangeServiceProxy" />
+		<property name="targetMethod" value="getRequestContext" />
+	</bean>
+	
+	<!-- Setup the username and password on the JAX request context -->
+	<bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+		<property name="targetObject" ref="jaxwsRequestContext"/>
+		<property name="targetMethod" value="putAll"/>
+		<property name="arguments">
+			<list>
+				<map>
+					<entry key="#{USERNAME_PROPERTY}" value="${au.com.david.exchange.user}"/>
+					<!-- Need to decrypt the password from the properties file -->
+					<entry key="#{PASSWORD_PROPERTY}">
+						<bean class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+							<property name="targetClass" value="au.com.david.exchange.task.Crypto" />
+							<property name="targetMethod" value="decrypt" />
+							<property name="arguments">
+								<array>
+									<value>${au.com.david.exchange.password}</value>
+								</array>
+							</property>
+						</bean>
+					</entry>
+				</map>
+			</list>
+		</property>
+	</bean>
+	
+	<bean id="exchangeTaskService" class="au.com.david.exchange.task.TaskServiceExchangeImpl">
+		<property name="portType" ref="exchangeServiceProxy" />
+		<property name="createItemBuilder"  ref="createItemBuilder" />
+		<property name="findItemBuilder"  ref="findItemBuilder" />
+		<property name="deleteItemBuilder"  ref="deleteItemBuilder" />
+	</bean>
+	
+	<bean id="createItemBuilder" class="au.com.david.exchange.task.CreateItemBuilder" />
+	<bean id="findItemBuilder" class="au.com.david.exchange.task.FindItemBuilder" />
+	<bean id="deleteItemBuilder" class="au.com.david.exchange.task.DeleteItemBuilder" />
+</beans>
